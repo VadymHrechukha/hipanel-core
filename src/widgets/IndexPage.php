@@ -247,7 +247,6 @@ JS
                 }
                 .horizontal-view .horizontal-content > .col-lg-10 {
                     flex: 1 1 auto;
-                    width: auto;
                 }
             }
             .horizontal-view .content-sidebar .select2-selection--multiple .select2-selection__rendered:has(.select2-selection__choice) {
