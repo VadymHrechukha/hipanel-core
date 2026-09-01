@@ -76,15 +76,20 @@ class AdvancedSearchActiveField extends ActiveField
      */
     private function registerShiftEnterSubmit()
     {
-        $formId = $this->form->getId();
-        $selector = "#$formId [data-autosize]";
+        $formId = $this->form->options['id'];
+        $formIdJs = \yii\helpers\Json::encode($formId);
         $js = <<<JS
-$(document).on('keydown', '$selector', function (e) {
-    if (e.key === 'Enter' && e.shiftKey) {
-        e.preventDefault();
-        $(this).closest('form').trigger('submit');
+(function () {
+    var form = document.getElementById($formIdJs);
+    if (form) {
+        $(form).on('keydown', '[data-autosize]', function (e) {
+            if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
+                $(form).trigger('submit');
+            }
+        });
     }
-});
+})();
 JS;
         $this->form->getView()->registerJs($js, \yii\web\View::POS_READY, 'advanced-search-textarea-shift-enter-' . $formId);
     }
