@@ -237,6 +237,9 @@ JS
             .horizontal-view .content-sidebar__inner .btn-group > a.btn {
                 width: 100%;
             }
+            .horizontal-content > [class*="col-"] {
+                min-width: 0;
+            }
             @media (min-width: 1200px) {
                 .horizontal-view .horizontal-content {
                     display: flex;
