@@ -22,7 +22,12 @@ export default class Form extends BasePage {
     await expect(submitButton).toBeEnabled();
 
     await submitButton.click();
-    await this.page.waitForLoadState("networkidle");
+    // "networkidle" can hang indefinitely when the page has persistent background
+    // traffic (analytics beacons, the Yii debug toolbar, etc.) that never truly
+    // goes quiet. Callers already assert on a concrete post-submit signal (the
+    // success/error alert, a specific heading, ...), so waiting only for the
+    // navigated document to be parsed is enough and far more reliable.
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async seeAlert(text: string): Promise<void> {
