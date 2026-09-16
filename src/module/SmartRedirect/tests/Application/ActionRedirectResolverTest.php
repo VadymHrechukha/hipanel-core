@@ -6,9 +6,11 @@ namespace hipanel\module\SmartRedirect\tests\Application;
 
 use hipanel\actions\Action;
 use hipanel\module\SmartRedirect\Application\ActionRedirectResolver;
+use hipanel\module\SmartRedirect\Domain\PostActionRedirectPolicy;
 use hipanel\module\SmartRedirect\Domain\PreferPreviousRedirectPolicy;
 use hipanel\module\SmartRedirect\Domain\PreferSearchRedirectPolicy;
 use hipanel\module\SmartRedirect\Domain\PreferViewRedirectPolicy;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ActionRedirectResolverTest extends TestCase
@@ -17,77 +19,62 @@ class ActionRedirectResolverTest extends TestCase
     private const SEARCH_URL = '/entity/index';
     private const PREVIOUS_URL = '/entity/index?previous=1';
 
-    // --- Waterfall (no policy): view → previous → search ---
-
-    public function testWaterfallResolvesToViewForSingleItem(): void
+    #[DataProvider('resolveCases')]
+    public function testResolve(?PostActionRedirectPolicy $policy, int $itemCount, ?string $previousUrl, string $expectedUrl): void
     {
-        $resolver = new ActionRedirectResolver();
+        $resolver = new ActionRedirectResolver($policy !== null ? ['policy' => $policy] : []);
 
-        $this->assertSame(self::VIEW_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: null)));
+        $this->assertSame($expectedUrl, $resolver->resolve($this->makeAction($itemCount, $previousUrl)));
     }
 
-    public function testWaterfallSkipsPreviousWhenViewIsResolved(): void
+    public static function resolveCases(): iterable
     {
-        $resolver = new ActionRedirectResolver();
+        // --- Waterfall (no policy): view → previous → search ---
+        yield 'waterfall: single item resolves to view' => [
+            null, 1, null, self::VIEW_URL,
+        ];
+        yield 'waterfall: view wins over previous for single item' => [
+            null, 1, self::PREVIOUS_URL, self::VIEW_URL,
+        ];
+        yield 'waterfall: multiple items fall back to previous' => [
+            null, 2, self::PREVIOUS_URL, self::PREVIOUS_URL,
+        ];
+        yield 'waterfall: multiple items with no previous fall back to search' => [
+            null, 2, null, self::SEARCH_URL,
+        ];
 
-        // single item AND previous URL available — view must win
-        $this->assertSame(self::VIEW_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: self::PREVIOUS_URL)));
-    }
+        // --- PreferViewRedirectPolicy: explicit policy means no waterfall fallback to previous ---
+        yield 'prefer view: single item resolves to view' => [
+            new PreferViewRedirectPolicy(), 1, null, self::VIEW_URL,
+        ];
+        yield 'prefer view: single item ignores previous even when remembered' => [
+            new PreferViewRedirectPolicy(), 1, self::PREVIOUS_URL, self::VIEW_URL,
+        ];
+        yield 'prefer view: multiple items with no previous fall back to search' => [
+            new PreferViewRedirectPolicy(), 2, null, self::SEARCH_URL,
+        ];
+        yield 'prefer view: multiple items fall back straight to search' => [
+            new PreferViewRedirectPolicy(), 2, self::PREVIOUS_URL, self::SEARCH_URL,
+        ];
 
-    public function testWaterfallResolvesToPreviousWhenMultipleItems(): void
-    {
-        $resolver = new ActionRedirectResolver();
+        // --- PreferPreviousRedirectPolicy ---
+        yield 'prefer previous: resolves to previous url' => [
+            new PreferPreviousRedirectPolicy(), 1, self::PREVIOUS_URL, self::PREVIOUS_URL,
+        ];
+        yield 'prefer previous: single item falls back to view when no previous remembered' => [
+            new PreferPreviousRedirectPolicy(), 1, null, self::VIEW_URL,
+        ];
+        yield 'prefer previous: multiple items fall back to search when no previous remembered' => [
+            new PreferPreviousRedirectPolicy(), 2, null, self::SEARCH_URL,
+        ];
+        yield 'prefer previous: multiple items resolve to previous url regardless of count' => [
+            new PreferPreviousRedirectPolicy(), 2, self::PREVIOUS_URL, self::PREVIOUS_URL,
+        ];
 
-        $this->assertSame(self::PREVIOUS_URL, $resolver->resolve($this->makeAction(itemCount: 2, previousUrl: self::PREVIOUS_URL)));
-    }
-
-    public function testWaterfallResolvesToSearchWhenMultipleItemsAndNoPreviousUrl(): void
-    {
-        $resolver = new ActionRedirectResolver();
-
-        $this->assertSame(self::SEARCH_URL, $resolver->resolve($this->makeAction(itemCount: 2, previousUrl: null)));
-    }
-
-    // --- PreferViewRedirectPolicy ---
-
-    public function testPreferViewPolicyResolvesToViewForSingleItem(): void
-    {
-        $resolver = new ActionRedirectResolver(['policy' => new PreferViewRedirectPolicy()]);
-
-        $this->assertSame(self::VIEW_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: null)));
-    }
-
-    public function testPreferViewPolicyFallsBackToSearchForMultipleItems(): void
-    {
-        $resolver = new ActionRedirectResolver(['policy' => new PreferViewRedirectPolicy()]);
-
-        // with explicit policy, there is no waterfall — view fails → search directly
-        $this->assertSame(self::SEARCH_URL, $resolver->resolve($this->makeAction(itemCount: 2, previousUrl: self::PREVIOUS_URL)));
-    }
-
-    // --- PreferPreviousRedirectPolicy ---
-
-    public function testPreferPreviousPolicyResolvesToPreviousUrl(): void
-    {
-        $resolver = new ActionRedirectResolver(['policy' => new PreferPreviousRedirectPolicy()]);
-
-        $this->assertSame(self::PREVIOUS_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: self::PREVIOUS_URL)));
-    }
-
-    public function testPreferPreviousPolicyFallsBackToSearchWhenNoPreviousUrl(): void
-    {
-        $resolver = new ActionRedirectResolver(['policy' => new PreferPreviousRedirectPolicy()]);
-
-        $this->assertSame(self::SEARCH_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: null)));
-    }
-
-    // --- PreferSearchRedirectPolicy ---
-
-    public function testPreferSearchPolicyAlwaysResolvesToSearch(): void
-    {
-        $resolver = new ActionRedirectResolver(['policy' => new PreferSearchRedirectPolicy()]);
-
-        $this->assertSame(self::SEARCH_URL, $resolver->resolve($this->makeAction(itemCount: 1, previousUrl: self::PREVIOUS_URL)));
+        // --- PreferSearchRedirectPolicy ---
+        yield 'prefer search: always resolves to search' => [
+            new PreferSearchRedirectPolicy(), 1, self::PREVIOUS_URL, self::SEARCH_URL,
+        ];
     }
 
     private function makeAction(int $itemCount, ?string $previousUrl): Action

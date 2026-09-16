@@ -46,7 +46,7 @@ class ActionRedirectResolver extends Component
     {
         return match ($this->resolvedPolicy->preferredTarget()) {
             RedirectTarget::View => $this->resolveView($action),
-            RedirectTarget::Previous => $this->resolvePrevious($action),
+            RedirectTarget::Previous => $this->resolvePrevious($action) ?? $this->resolveView($action),
             RedirectTarget::Search => $this->resolveSearch($action),
         };
     }
