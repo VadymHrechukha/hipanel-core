@@ -12,7 +12,6 @@ namespace hipanel\actions;
 
 use Closure;
 use hipanel\base\FilterStorage;
-use hipanel\helpers\Url;
 use yii\base\InvalidConfigException;
 
 /**
@@ -77,7 +76,7 @@ class RenderAction extends Action
         $queryParams = $this->controller->request->getQueryParams();
         $theFiltersShouldBeCleaned = $this->controller->request->post('clear-filters') === 'true';
         if (!empty($storedFilters) && !isset($queryParams[$formName]) && !$theFiltersShouldBeCleaned) {
-            return $this->controller->redirect(Url::toSearch($this->controller->id, $storedFilters));
+            return $this->controller->redirect(['/' . $this->parent->getUniqueId(), $formName => $storedFilters]);
         }
 
         return $this->controller->render($this->getViewName(), $this->getParams());
